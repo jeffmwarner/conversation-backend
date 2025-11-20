@@ -3,38 +3,39 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(cors({
-  origin: "https://jeffmwarner.github.io",
-  methods: ["GET", "PSOT", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
-  
-}));
-app.options("*", cors());
+app.use(cors());
 app.use(express.json());
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Default system prompt if caller doesn't specify one
+const DEFAULT_SYSTEM_PROMPT = `
+You are a supportive, safety-focused assistant. Use warm, validating language.
+Do not diagnose or prescribe. If the user expresses self-harm or harm to others,
+encourage contacting crisis services or emergency care. Keep responses concise and clear.
+`.trim();
+
 app.post("/api/chat", async (req, res) => {
   try {
-    const userMessage = (req.body.message || "").toString().slice(0, 1000);
+    const userMessage = (req.body.message || "").toString().slice(0, 2000);
+
+    // 👇 allow caller to override system instructions
+    const systemPrompt = (req.body.systemPrompt || DEFAULT_SYSTEM_PROMPT).toString();
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a supportive health intake assistant, with a focus on cardiovascular disease and hypertension. Use warm, validating language. Do not diagnose. If user expresses self-harm or harm to others, provide supportive language and recommend contacting 988 or emergency services. Keep replies 3-5 sentences. Do not ask any follow up questions.",
-          //"You are a conservative, safety-focused symptom triage assistant. You help users understand appropriate next steps, not diagnose or treat. Always prioritize safety. Core rules: - Never diagnose; use general language only. - Never prescribe or adjust meds. - Recommend immediate emergency care for red-flag symptoms (severe chest pain, trouble breathing, confusion, stroke-like signs, allergic reaction, thoughts of self-harm). - Recommend urgent same-day care for rapidly worsening or concerning symptoms. - Use cautious, plain-language explanations. - Always include a non-medical-advice disclaimer. Output format (important): Always reply with a single JSON object using exactly this structure: { 'summary': 'Brief summary of what the user reports.', 'urgency_level': 'emergency_now | urgent_today | within_24_hours | routine | unclear', 'recommended_action': 'Next care step in plain language.', 'red_flags_detected': [], 'reasoning': 'Short explanation in lay terms.', 'disclaimer': 'General information only, not medical advice.'} Do not include markdown. Output JSON only."
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
       temperature: 0.4,
     });
 
-    const reply = completion.choices[0]?.message?.content ?? "Sorry, I’m not sure how to respond right now.";
+    const reply =
+      completion.choices[0]?.message?.content ??
+      "Sorry, I’m not sure how to respond right now.";
     res.json({ reply });
   } catch (err) {
     console.error(err);
