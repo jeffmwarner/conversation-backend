@@ -21,8 +21,10 @@ app.post("/api/chat", async (req, res) => {
   try {
     const userMessage = (req.body.message || "").toString().slice(0, 2000);
 
-    // 👇 allow caller to override system instructions
-    const systemPrompt = (req.body.systemPrompt || DEFAULT_SYSTEM_PROMPT).toString();
+    // allow caller to override system instructions
+    //const systemPrompt = (req.body.systemPrompt || DEFAULT_SYSTEM_PROMPT).toString();
+    const systemPrompt = SYSTEM_PROFILES[req.body.profile] || SYSTEM_PROFILES.default;
+
 
     const completion = await client.chat.completions.create({
       model: "gpt-4.1-mini",
